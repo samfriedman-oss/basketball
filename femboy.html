@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BASKETBALL LEGENDS 3D // ONLINE REAL-TIME P2P</title>
+    <link href="https://fonts.googleapis.com/css2?family=Teko:wght@600;700&family=Orbitron:wght@800;900&family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        :root {
+            --p1-color: #00f0ff;
+            --p1-glow: rgba(0, 240, 255, 0.6);
+            --p2-color: #ff3e00;
+            --p2-glow: rgba(255, 62, 0, 0.6);
+            --gold: #ffb700;
+            --dark-bg: #060810;
+            --panel-bg: rgba(12, 16, 26, 0.92);
+            --font-head: 'Orbitron', sans-serif;
+            --font-sub: 'Teko', sans-serif;
+            --font-body: 'Inter', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--dark-bg);
+            font-family: var(--font-body);
+            color: #ffffff;
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .interactive { pointer-events: auto; }
+
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, rgba(15,23,42,0.85) 0%, rgba(5,7,12,0.98) 100%);
+            backdrop-filter: blur(12px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+            z-index: 50;
+        }
+
+        .screen.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .logo-title {
+            font-family: var(--font-head);
+            font-size: 3.5rem;
+            font-style: italic;
+            letter-spacing: 4px;
+            background: linear-gradient(135deg, #ffffff 0%, var(--gold) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 35px rgba(255,183,0,0.6);
+            margin-bottom: 0.2rem;
+        }
+
+        .logo-sub {
+            font-family: var(--font-sub);
+            font-size: 1.8rem;
+            letter-spacing: 3px;
+            color: var(--p1-color);
+            text-transform: uppercase;
+            margin-bottom: 1.5rem;
+        }
+
+        /* LOBBY & ONLINE SELECTION SETUP */
+        .lobby-box {
+            background: var(--panel-bg);
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.2rem;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+        }
+
+        .lobby-input {
+            font-family: var(--font-head);
+            font-size: 1.5rem;
+            padding: 0.8rem 1.2rem;
+            border-radius: 8px;
+            border: 2px solid rgba(255,255,255,0.2);
+            background: rgba(0,0,0,0.5);
+            color: #fff;
+            text-align: center;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            width: 100%;
+        }
+
+        .lobby-input:focus {
+            outline: none;
+            border-color: var(--p1-color);
+            box-shadow: 0 0 15px var(--p1-glow);
+        }
+
+        .room-code-display {
+            font-family: var(--font-head);
+            font-size: 2.2rem;
+            color: var(--gold);
+            letter-spacing: 6px;
+            background: rgba(0,0,0,0.6);
+            padding: 0.5rem 1.5rem;
+            border-radius: 8px;
+            border: 1px dashed var(--gold);
+        }
+
+        .selection-container {
+            display: flex;
+            gap: 2rem;
+            width: 95%;
+            max-width: 1200px;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .player-select-panel {
+            flex: 1;
+            background: var(--panel-bg);
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 1.2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .player-select-panel.p1-side { border-color: var(--p1-color); box-shadow: 0 0 20px var(--p1-glow); }
+        .player-select-panel.p2-side { border-color: var(--p2-color); box-shadow: 0 0 20px var(--p2-glow); }
+
+        .panel-header {
+            font-family: var(--font-head);
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .p1-side .panel-header { color: var(--p1-color); }
+        .p2-side .panel-header { color: var(--p2-color); }
+
+        .roster-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+            width: 100%;
+        }
+
+        .roster-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 0.8rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .roster-card:hover { background: rgba(255,255,255,0.15); }
+        .roster-card.active-p1 { background: rgba(0, 240, 255, 0.25); border-color: var(--p1-color); }
+        .roster-card.active-p2 { background: rgba(255, 62, 0, 0.25); border-color: var(--p2-color); }
+
+        .btn {
+            font-family: var(--font-head);
+            font-size: 1.5rem;
+            padding: 0.8rem 2.5rem;
+            background: var(--gold);
+            color: #000;
+            font-weight: 900;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            letter-spacing: 2px;
+            transition: all 0.2s ease;
+            box-shadow: 0 0 25px rgba(255, 183, 0, 0.6);
+            width: 100%;
+        }
+
+        .btn:hover {
+            transform: scale(1.03);
+            background: #ffca3a;
+        }
+
+        /* IN-GAME HUD */
+        #hud {
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        #hud.active { opacity: 1; }
+
+        .scoreboard {
+            background: var(--panel-bg);
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 0.6rem 2rem;
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        .score-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .p1-score-title { font-family: var(--font-sub); font-size: 1.4rem; color: var(--p1-color); }
+        .p2-score-title { font-family: var(--font-sub); font-size: 1.4rem; color: var(--p2-color); }
+
+        .score-num { font-family: var(--font-head); font-size: 3rem; line-height: 1; }
+
+        .timer-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border-left: 1px solid rgba(255,255,255,0.15);
+            border-right: 1px solid rgba(255,255,255,0.15);
+            padding: 0 1.5rem;
+        }
+
+        .game-timer { font-family: var(--font-head); font-size: 2rem; color: var(--gold); }
+        .shot-timer { font-family: var(--font-head); font-size: 1.2rem; color: #ff4757; }
+
+        .controls-card {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: var(--panel-bg);
+            border: 2px solid var(--p1-color);
+            border-radius: 10px;
+            padding: 0.8rem 1.2rem;
+            font-size: 0.78rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            pointer-events: auto;
+        }
+
+        .key-row { display: flex; justify-content: space-between; gap: 1rem; color: #cbd5e1; }
+        .k-badge { background: rgba(255,255,255,0.2); padding: 1px 6px; border-radius: 4px; font-weight: 800; color: #fff; }
+
+        #announcer {
+            position: absolute;
+            top: 25%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            font-family: var(--font-head);
+            font-size: 4rem;
+            font-style: italic;
+            color: var(--gold);
+            text-shadow: 0 0 25px rgba(255, 183, 0, 0.9), 3px 3px 0 #000;
+            opacity: 0;
+            transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        #announcer.active { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+    </style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+
+<div id="ui-layer">
+
+    <!-- HUD TOP -->
+    <div id="hud">
+        <div class="scoreboard">
+            <div class="score-box">
+                <span class="p1-score-title" id="hud-p1-name">PLAYER 1</span>
+                <span class="score-num" id="p1-score">0</span>
+            </div>
+            <div class="timer-box">
+                <span class="game-timer" id="game-clock">02:00</span>
+                <span class="shot-timer" id="shot-clock">24</span>
+            </div>
+            <div class="score-box">
+                <span class="p2-score-title" id="hud-p2-name">PLAYER 2</span>
+                <span class="score-num" id="p2-score">0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOCAL PLAYER CONTROLS HELPER -->
+    <div class="controls-card">
+        <div class="card-title" style="color: var(--gold);">YOUR CONTROLS</div>
+        <div class="key-row"><span>Move / Jump</span><span><span class="k-badge">W</span><span class="k-badge">A</span><span class="k-badge">S</span><span class="k-badge">D</span></span></div>
+        <div class="key-row"><span>Shoot / Dunk / Block</span><span><span class="k-badge">F</span></span></div>
+        <div class="key-row"><span>Crossover / Steal</span><span><span class="k-badge">G</span></span></div>
+        <div class="key-row"><span>Super Turbo</span><span><span class="k-badge">L-SHIFT</span></span></div>
+    </div>
+
+    <div id="announcer">CONNECTED!</div>
+
+    <!-- MULTIPLAYER LOBBY SCREEN -->
+    <div id="screen-lobby" class="screen active interactive">
+        <h1 class="logo-title">BASKETBALL LEGENDS 3D</h1>
+        <p class="logo-sub">Real-Time P2P Online Multiplayer</p>
+
+        <div class="lobby-box">
+            <button class="btn" id="btn-host-mode">CREATE HOST ROOM</button>
+            <div style="font-size: 0.9rem; color: #a0aec0;">— OR JOIN FRIEND —</div>
+            <input type="text" class="lobby-input" id="join-code-input" placeholder="ENTER ROOM CODE" maxlength="4">
+            <button class="btn" id="btn-join-mode" style="background: var(--p1-color);">JOIN ROOM</button>
+            <div id="lobby-status" style="font-size: 0.85rem; color: var(--gold); text-align: center; margin-top: 0.5rem;"></div>
+        </div>
+    </div>
+
+    <!-- CHARACTER SELECT SCREEN -->
+    <div id="screen-select" class="screen interactive">
+        <h1 class="logo-title">ROSTER SELECTION</h1>
+        <div class="room-code-display" id="room-code-tag">ROOM: ----</div>
+
+        <div class="selection-container" style="margin-top: 1.5rem;">
+            <div class="player-select-panel p1-side">
+                <div class="panel-header">HOST (P1)</div>
+                <div class="roster-list" id="p1-roster"></div>
+            </div>
+            <div class="player-select-panel p2-side">
+                <div class="panel-header">GUEST (P2)</div>
+                <div class="roster-list" id="p2-roster"></div>
+            </div>
+        </div>
+
+        <button class="btn" id="btn-start-game" style="max-width: 400px; display: none;">START ONLINE MATCH</button>
+    </div>
+
+    <!-- GAME OVER SCREEN -->
+    <div id="screen-gameover" class="screen interactive">
+        <h1 class="logo-title" id="gameover-title">MATCH OVER</h1>
+        <p class="logo-sub" id="gameover-subtitle">PLAYER 1 WINS!</p>
+        <button class="btn" id="btn-rematch" style="max-width: 300px;">PLAY AGAIN</button>
+    </div>
+
+</div>
+
+<script>
+    /* =========================================================================
+       1. GAME DATA & WEBRTC P2P MULTIPLAYER ENGINE
+       ========================================================================= */
+    const ROSTER = [
+        { id: 'lebron', name: 'LeBron James', team: 'LAKERS', height: 2.06, color: 0xFDB927, speed: 7.5, dunk: 95, three: 82 },
+        { id: 'curry', name: 'Stephen Curry', team: 'WARRIORS', height: 1.88, color: 0x1D428A, speed: 8.2, dunk: 68, three: 99 },
+        { id: 'giannis', name: 'Giannis A.', team: 'BUCKS', height: 2.11, color: 0x00471B, speed: 8.0, dunk: 99, three: 72 },
+        { id: 'wemby', name: 'V. Wembanyama', team: 'SPURS', height: 2.24, color: 0xC4CED4, speed: 7.2, dunk: 92, three: 80 },
+        { id: 'kd', name: 'Kevin Durant', team: 'SUNS', height: 2.11, color: 0xE56020, speed: 7.6, dunk: 88, three: 93 }
+    ];
+
+    let isHost = false;
+    let myPeer = null;
+    let peerConn = null;
+    let roomCode = "";
+
+    let p1SelectedIndex = 0;
+    let p2SelectedIndex = 1;
+
+    class SoundEngine {
+        constructor() { this.ctx = null; }
+        init() {
+            if (this.ctx) return;
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                this.ctx = new AudioCtx();
+            } catch(e){}
+        }
+        playBounce() {
+            if (!this.ctx) return;
+            try {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(130, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.08);
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.08);
+            } catch(e){}
+        }
+        playSwish() {
+            if (!this.ctx) return;
+            try {
+                const bufferSize = this.ctx.sampleRate * 0.2;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'bandpass'; filter.frequency.value = 1000;
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+                noise.connect(filter); filter.connect(gain); gain.connect(this.ctx.destination);
+                noise.start();
+            } catch(e){}
+        }
+        playWhistle() {
+            if (!this.ctx) return;
+            try {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(2200, this.ctx.currentTime);
+                osc.frequency.setValueAtTime(2500, this.ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.3);
+            } catch(e){}
+        }
+    }
+    const audio = new SoundEngine();
+
+    /* =========================================================================
+       2. 3D GRAPHICS SCENE SETUP
+       ========================================================================= */
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x060810);
+    scene.fog = new THREE.FogExp2(0x060810, 0.015);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(ambientLight);
+
+    const spotLight = new THREE.SpotLight(0xfff0dd, 1.8);
+    spotLight.position.set(0, 22, 0);
+    spotLight.angle = Math.PI / 3;
+    spotLight.castShadow = true;
+    scene.add(spotLight);
+
+    const COURT_W = 14;
+    const COURT_L = 26;
+    const HOOP_LEFT = new THREE.Vector3(-11, 3.05, 0);
+    const HOOP_RIGHT = new THREE.Vector3(11, 3.05, 0);
+
+    function createCourt() {
+        const group = new THREE.Group();
+
+        const floorGeo = new THREE.PlaneGeometry(COURT_L + 2, COURT_W + 2);
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0xC18648, roughness: 0.3 });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        group.add(floor);
+
+        const apronGeo = new THREE.PlaneGeometry(COURT_L, COURT_W);
+        const apronMat = new THREE.MeshStandardMaterial({ color: 0x111e38, roughness: 0.4 });
+        const apron = new THREE.Mesh(apronGeo, apronMat);
+        apron.rotation.x = -Math.PI / 2;
+        apron.position.y = 0.001;
+        apron.receiveShadow = true;
+        group.add(apron);
+
+        const createHoop = (pos, isLeft) => {
+            const poleGeo = new THREE.CylinderGeometry(0.1, 0.1, 4.2);
+            const poleMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8 });
+            const pole = new THREE.Mesh(poleGeo, poleMat);
+            pole.position.set(pos.x + (isLeft ? -0.8 : 0.8), 2.1, pos.z);
+            group.add(pole);
+
+            const boardGeo = new THREE.BoxGeometry(0.08, 1.05, 1.8);
+            const boardMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
+            const board = new THREE.Mesh(boardGeo, boardMat);
+            board.position.set(pos.x + (isLeft ? -0.4 : 0.4), 3.5, pos.z);
+            group.add(board);
+
+            const rimGeo = new THREE.TorusGeometry(0.23, 0.025, 12, 24);
+            const rimMat = new THREE.MeshStandardMaterial({ color: 0xff3e00 });
+            const rim = new THREE.Mesh(rimGeo, rimMat);
+            rim.rotation.x = Math.PI / 2;
+            rim.position.copy(pos);
+            group.add(rim);
+        };
+
+        createHoop(HOOP_LEFT, true);
+        createHoop(HOOP_RIGHT, false);
+
+        scene.add(group);
+    }
+    createCourt();
+
+    const ballGeo = new THREE.SphereGeometry(0.16, 24, 24);
+    const ballMat = new THREE.MeshStandardMaterial({ color: 0xee5500, roughness: 0.5 });
+    const ballMesh = new THREE.Mesh(ballGeo, ballMat);
+    ballMesh.castShadow = true;
+    scene.add(ballMesh);
+
+    const ballState = {
+        pos: new THREE.Vector3(0, 1, 0),
+        vel: new THREE.Vector3(0, 0, 0),
+        handler: null,
+        isShot: false,
+        targetHoop: null,
+        isThree: false,
+        shooter: null
+    };
+
+    function createPlayerMesh(colorHex, height) {
+        const group = new THREE.Group();
+        const scale = height / 2.0;
+
+        const skinMat = new THREE.MeshStandardMaterial({ color: 0x8d5524 });
+        const jerseyMat = new THREE.MeshStandardMaterial({ color: colorHex });
+
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.13 * scale, 16, 16), skinMat);
+        head.position.y = 1.75 * scale;
+        group.add(head);
+
+        const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.2 * scale, 0.16 * scale, 0.65 * scale, 12), jerseyMat);
+        torso.position.y = 1.25 * scale;
+        group.add(torso);
+
+        const legGeo = new THREE.CylinderGeometry(0.06 * scale, 0.05 * scale, 0.6 * scale);
+        const legL = new THREE.Mesh(legGeo, skinMat);
+        const legR = new THREE.Mesh(legGeo, skinMat);
+        legL.position.set(-0.1 * scale, 0.5 * scale, 0);
+        legR.position.set(0.1 * scale, 0.5 * scale, 0);
+        group.add(legL, legR);
+
+        group.userData = { legL, legR, heightScale: scale };
+        return group;
+    }
+
+    /* =========================================================================
+       3. GAME ENTITIES & NETWORKING INPUT
+       ========================================================================= */
+    const gameState = {
+        active: false,
+        p1Score: 0,
+        p2Score: 0,
+        timeRemaining: 120,
+        shotClock: 24,
+        possessionP1: true
+    };
+
+    const p1 = {
+        id: 'P1',
+        mesh: null,
+        data: ROSTER[0],
+        pos: new THREE.Vector3(-4, 0, 0),
+        vel: new THREE.Vector3(0, 0, 0),
+        rotY: Math.PI / 2,
+        isJumping: false,
+        jumpVel: 0,
+        targetHoop: HOOP_RIGHT
+    };
+
+    const p2 = {
+        id: 'P2',
+        mesh: null,
+        data: ROSTER[1],
+        pos: new THREE.Vector3(4, 0, 0),
+        vel: new THREE.Vector3(0, 0, 0),
+        rotY: -Math.PI / 2,
+        isJumping: false,
+        jumpVel: 0,
+        targetHoop: HOOP_LEFT
+    };
+
+    // Local keyboard tracking
+    const localKeys = {};
+    window.addEventListener('keydown', (e) => {
+        localKeys[e.code] = true;
+        sendNetworkInputs();
+
+        if (!gameState.active) return;
+        const myPlayer = isHost ? p1 : p2;
+        const opponent = isHost ? p2 : p1;
+
+        if (e.code === 'KeyF') handleShoot(myPlayer);
+        if (e.code === 'KeyG') handleCrossoverSteal(myPlayer, opponent);
+    });
+
+    window.addEventListener('keyup', (e) => {
+        localKeys[e.code] = false;
+        sendNetworkInputs();
+    });
+
+    // Remote peer input tracking
+    const remoteKeys = {};
+
+    function sendNetworkInputs() {
+        if (peerConn && peerConn.open) {
+            peerConn.send({
+                type: 'INPUT',
+                keys: localKeys
+            });
+        }
+    }
+
+    function handleShoot(player) {
+        if (player.isJumping) return;
+
+        player.isJumping = true;
+        player.jumpVel = 6.8;
+
+        if (ballState.handler === player) {
+            setTimeout(() => {
+                if (ballState.handler === player) shootBall(player);
+            }, 200);
+        }
+    }
+
+    function handleCrossoverSteal(player, opponent) {
+        if (ballState.handler === player) {
+            const fwd = new THREE.Vector3(player.id === 'P1' ? 1 : -1, 0, 0);
+            player.vel.addScaledVector(fwd, 8.5);
+            audio.playBounce();
+            showAnnouncer(`${player.id} CROSSOVER!`);
+        } else if (ballState.handler === opponent) {
+            const dist = player.pos.distanceTo(opponent.pos);
+            if (dist < 1.8) {
+                ballState.handler = player;
+                audio.playWhistle();
+                showAnnouncer(`${player.id} STEAL!`);
+            }
+        }
+    }
+
+    function shootBall(player) {
+        ballState.handler = null;
+        ballState.isShot = true;
+        ballState.shooter = player;
+        ballState.targetHoop = player.targetHoop;
+        ballState.pos.copy(player.pos).add(new THREE.Vector3(0, 2.2, 0));
+
+        const dist = ballState.pos.distanceTo(player.targetHoop);
+        ballState.isThree = dist > 7.5;
+
+        const timeToTarget = 1.0;
+        ballState.vel.x = (player.targetHoop.x - ballState.pos.x) / timeToTarget;
+        ballState.vel.z = (player.targetHoop.z - ballState.pos.z) / timeToTarget;
+        ballState.vel.y = 7.8;
+
+        const stat = ballState.isThree ? player.data.three : player.data.dunk;
+        ballState.willMake = (Math.random() * 100) < stat;
+    }
+
+    /* =========================================================================
+       4. MAIN LOOP & REALTIME NETWORK SYNC
+       ========================================================================= */
+    let lastTime = performance.now();
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        const now = performance.now();
+        const dt = Math.min((now - lastTime) / 1000, 0.1);
+        lastTime = now;
+
+        if (gameState.active) {
+            const myPlayerKeys = localKeys;
+            const otherPlayerKeys = remoteKeys;
+
+            const p1Input = isHost ? myPlayerKeys : otherPlayerKeys;
+            const p2Input = isHost ? otherPlayerKeys : myPlayerKeys;
+
+            updatePlayerControls(p1, p1Input, dt);
+            updatePlayerControls(p2, p2Input, dt);
+            updateBallPhysics(dt);
+            updateCamera();
+            updateTimers(dt);
+
+            // Host syncs master world state to Guest at 60 FPS
+            if (isHost && peerConn && peerConn.open) {
+                peerConn.send({
+                    type: 'STATE_SYNC',
+                    p1Pos: p1.pos,
+                    p2Pos: p2.pos,
+                    ballPos: ballState.pos,
+                    p1Score: gameState.p1Score,
+                    p2Score: gameState.p2Score,
+                    time: gameState.timeRemaining,
+                    shotClock: gameState.shotClock
+                });
+            }
+        }
+
+        renderer.render(scene, camera);
+    }
+
+    function updatePlayerControls(player, inputKeys, dt) {
+        let speed = player.data.speed;
+        if (inputKeys['ShiftLeft']) speed *= 1.4;
+
+        const moveDir = new THREE.Vector3();
+
+        if (inputKeys['KeyW']) moveDir.z -= 1;
+        if (inputKeys['KeyS']) moveDir.z += 1;
+        if (inputKeys['KeyA']) moveDir.x -= 1;
+        if (inputKeys['KeyD']) moveDir.x += 1;
+
+        if (moveDir.lengthSq() > 0) {
+            moveDir.normalize();
+            player.vel.addScaledVector(moveDir, speed * 10 * dt);
+            player.rotY = Math.atan2(moveDir.x, moveDir.z);
+        }
+
+        player.pos.addScaledVector(player.vel, dt);
+        player.vel.multiplyScalar(Math.pow(0.02, dt));
+
+        player.pos.x = THREE.MathUtils.clamp(player.pos.x, -COURT_L / 2 + 0.5, COURT_L / 2 - 0.5);
+        player.pos.z = THREE.MathUtils.clamp(player.pos.z, -COURT_W / 2 + 0.5, COURT_W / 2 - 0.5);
+
+        player.mesh.position.copy(player.pos);
+        player.mesh.rotation.y = player.rotY;
+
+        if (player.isJumping) {
+            player.pos.y += player.jumpVel * dt;
+            player.jumpVel -= 19.6 * dt;
+
+            if (player.pos.y <= 0) {
+                player.pos.y = 0;
+                player.isJumping = false;
+            }
+        }
+    }
+
+    function updateBallPhysics(dt) {
+        if (ballState.handler) {
+            const h = ballState.handler;
+            const fwd = new THREE.Vector3(Math.sin(h.rotY), 0, Math.cos(h.rotY)).multiplyScalar(0.4);
+
+            ballState.pos.copy(h.pos).add(fwd);
+            const bounce = Math.abs(Math.sin(performance.now() * 0.012)) * 0.45;
+            ballState.pos.y = 0.15 + bounce;
+
+            if (bounce < 0.03) audio.playBounce();
+
+        } else if (ballState.isShot) {
+            ballState.pos.addScaledVector(ballState.vel, dt);
+            ballState.vel.y -= 9.81 * dt;
+
+            if (ballState.pos.distanceTo(ballState.targetHoop) < 0.4) {
+                if (ballState.willMake) {
+                    audio.playSwish();
+                    const pts = ballState.isThree ? 3 : 2;
+
+                    if (ballState.shooter === p1) {
+                        gameState.p1Score += pts;
+                        showAnnouncer(`P1 SCORES +${pts}!`);
+                    } else {
+                        gameState.p2Score += pts;
+                        showAnnouncer(`P2 SCORES +${pts}!`);
+                    }
+
+                    resetPossession(ballState.shooter !== p1);
+                } else {
+                    showAnnouncer("BRICK!");
+                    ballState.vel.set((Math.random() - 0.5) * 4, 4, (Math.random() - 0.5) * 4);
+                    ballState.isShot = false;
+                }
+            }
+
+            if (ballState.pos.y < 0.15) {
+                ballState.pos.y = 0.15;
+                ballState.isShot = false;
+                resetPossession(!gameState.possessionP1);
+            }
+        }
+
+        ballMesh.position.copy(ballState.pos);
+    }
+
+    function updateCamera() {
+        const myPlayer = isHost ? p1 : p2;
+        const targetCamPos = new THREE.Vector3(myPlayer.pos.x, 6.5, 12.0);
+
+        camera.position.lerp(targetCamPos, 0.08);
+        camera.lookAt(myPlayer.pos.x, 1.5, 0);
+    }
+
+    function updateTimers(dt) {
+        if (isHost) {
+            gameState.timeRemaining -= dt;
+            gameState.shotClock -= dt;
+
+            if (gameState.shotClock <= 0) {
+                audio.playWhistle();
+                showAnnouncer("SHOT CLOCK VIOLATION!");
+                resetPossession(!gameState.possessionP1);
+            }
+
+            if (gameState.timeRemaining <= 0) endGame();
+        }
+
+        const mins = Math.floor(gameState.timeRemaining / 60).toString().padStart(2, '0');
+        const secs = Math.floor(gameState.timeRemaining % 60).toString().padStart(2, '0');
+        document.getElementById('game-clock').textContent = `${mins}:${secs}`;
+        document.getElementById('shot-clock').textContent = Math.ceil(gameState.shotClock);
+        document.getElementById('p1-score').textContent = gameState.p1Score;
+        document.getElementById('p2-score').textContent = gameState.p2Score;
+    }
+
+    function resetPossession(p1GetsBall) {
+        gameState.possessionP1 = p1GetsBall;
+        gameState.shotClock = 24;
+        ballState.isShot = false;
+
+        p1.pos.set(-4, 0, 0);
+        p2.pos.set(4, 0, 0);
+
+        ballState.handler = p1GetsBall ? p1 : p2;
+    }
+
+    function showAnnouncer(text) {
+        const el = document.getElementById('announcer');
+        el.textContent = text;
+        el.classList.add('active');
+        setTimeout(() => el.classList.remove('active'), 1200);
+    }
+
+    function endGame() {
+        gameState.active = false;
+        document.getElementById('hud').classList.remove('active');
+        document.getElementById('screen-gameover').classList.add('active');
+
+        const title = document.getElementById('gameover-title');
+        const sub = document.getElementById('gameover-subtitle');
+
+        title.textContent = `${gameState.p1Score} - ${gameState.p2Score}`;
+        if (gameState.p1Score > gameState.p2Score) sub.textContent = "HOST WINS!";
+        else if (gameState.p2Score > gameState.p1Score) sub.textContent = "GUEST WINS!";
+        else sub.textContent = "IT'S A TIE!";
+    }
+
+    /* =========================================================================
+       5. WEBRTC MULTIPLAYER LOBBY SYSTEM (PEERJS)
+       ========================================================================= */
+    function generateRoomCode() {
+        return Math.floor(1000 + Math.random() * 9000).toString();
+    }
+
+    document.getElementById('btn-host-mode').onclick = () => {
+        isHost = true;
+        roomCode = generateRoomCode();
+        document.getElementById('lobby-status').textContent = "INITIALIZING HOST...";
+
+        myPeer = new Peer(`bball3d-room-${roomCode}`);
+        myPeer.on('open', (id) => {
+            document.getElementById('room-code-tag').textContent = `ROOM CODE: ${roomCode}`;
+            document.getElementById('screen-lobby').classList.remove('active');
+            document.getElementById('screen-select').classList.add('active');
+            initRosterMenus();
+        });
+
+        myPeer.on('connection', (conn) => {
+            peerConn = conn;
+            setupConnectionListeners();
+            document.getElementById('btn-start-game').style.display = 'block';
+            showAnnouncer("GUEST CONNECTED!");
+        });
+    };
+
+    document.getElementById('btn-join-mode').onclick = () => {
+        const inputCode = document.getElementById('join-code-input').value.trim();
+        if (inputCode.length !== 4) {
+            alert("Please enter a valid 4-digit Room Code!");
+            return;
+        }
+
+        isHost = false;
+        roomCode = inputCode;
+        document.getElementById('lobby-status').textContent = "CONNECTING TO HOST...";
+
+        myPeer = new Peer();
+        myPeer.on('open', (id) => {
+            peerConn = myPeer.connect(`bball3d-room-${roomCode}`);
+            setupConnectionListeners();
+            document.getElementById('room-code-tag').textContent = `JOINED ROOM: ${roomCode}`;
+            document.getElementById('screen-lobby').classList.remove('active');
+            document.getElementById('screen-select').classList.add('active');
+            initRosterMenus();
+        });
+    };
+
+    function setupConnectionListeners() {
+        peerConn.on('data', (data) => {
+            if (data.type === 'INPUT') {
+                Object.assign(remoteKeys, data.keys);
+            } else if (data.type === 'SELECT_ROSTER') {
+                if (isHost) p2SelectedIndex = data.idx;
+                else p1SelectedIndex = data.idx;
+                initRosterMenus();
+            } else if (data.type === 'START_GAME') {
+                startMatchLocal();
+            } else if (!isHost && data.type === 'STATE_SYNC') {
+                // Non-host reconciles world state
+                p1.pos.copy(data.p1Pos);
+                p2.pos.copy(data.p2Pos);
+                ballState.pos.copy(data.ballPos);
+                gameState.p1Score = data.p1Score;
+                gameState.p2Score = data.p2Score;
+                gameState.timeRemaining = data.time;
+                gameState.shotClock = data.shotClock;
+            }
+        });
+    }
+
+    function initRosterMenus() {
+        const renderRoster = (containerId, isP1) => {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+
+            ROSTER.forEach((p, idx) => {
+                const card = document.createElement('div');
+                const isSelected = isP1 ? idx === p1SelectedIndex : idx === p2SelectedIndex;
+                card.className = `roster-card ${isSelected ? (isP1 ? 'active-p1' : 'active-p2') : ''}`;
+                card.innerHTML = `<span>${p.name} (${p.team})</span><span>${Math.round(p.height*3.28)}ft</span>`;
+
+                card.addEventListener('click', () => {
+                    if ((isHost && isP1) || (!isHost && !isP1)) {
+                        if (isHost) p1SelectedIndex = idx;
+                        else p2SelectedIndex = idx;
+
+                        initRosterMenus();
+
+                        if (peerConn && peerConn.open) {
+                            peerConn.send({
+                                type: 'SELECT_ROSTER',
+                                idx: idx
+                            });
+                        }
+                    }
+                });
+
+                container.appendChild(card);
+            });
+        };
+
+        renderRoster('p1-roster', true);
+        renderRoster('p2-roster', false);
+    }
+
+    function startMatchLocal() {
+        audio.init();
+        audio.playWhistle();
+
+        if (p1.mesh) scene.remove(p1.mesh);
+        if (p2.mesh) scene.remove(p2.mesh);
+
+        p1.data = ROSTER[p1SelectedIndex];
+        p1.mesh = createPlayerMesh(p1.data.color, p1.data.height);
+        scene.add(p1.mesh);
+
+        p2.data = ROSTER[p2SelectedIndex];
+        p2.mesh = createPlayerMesh(p2.data.color, p2.data.height);
+        scene.add(p2.mesh);
+
+        document.getElementById('hud-p1-name').textContent = p1.data.name;
+        document.getElementById('hud-p2-name').textContent = p2.data.name;
+
+        gameState.p1Score = 0;
+        gameState.p2Score = 0;
+        gameState.timeRemaining = 120;
+        gameState.active = true;
+
+        resetPossession(true);
+
+        document.getElementById('screen-select').classList.remove('active');
+        document.getElementById('screen-gameover').classList.remove('active');
+        document.getElementById('hud').classList.add('active');
+    }
+
+    document.getElementById('btn-start-game').onclick = () => {
+        if (peerConn && peerConn.open) {
+            peerConn.send({ type: 'START_GAME' });
+        }
+        startMatchLocal();
+    };
+
+    document.getElementById('btn-rematch').onclick = () => {
+        document.getElementById('screen-gameover').classList.remove('active');
+        document.getElementById('screen-select').classList.add('active');
+    };
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+</script>
+</body>
+</html>
